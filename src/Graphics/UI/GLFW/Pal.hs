@@ -2,6 +2,8 @@
 module Graphics.UI.GLFW.Pal (
     createWindow, 
     withWindow,
+    whileWindow,
+    closeOnEscape,
     processEvents, 
     swapBuffers, 
     Event(..),
@@ -32,6 +34,8 @@ createWindow windowName desiredW desiredH = do
     makeContextCurrent (Just win)
 
     swapInterval 1
+
+    setWindowCloseCallback win . Just $ \_ -> setWindowShouldClose win True
     events <- setupEventChan win
     return (win, events)
 
@@ -39,15 +43,28 @@ processEvents :: MonadIO m => TChan a -> (a -> m a1) -> m ()
 processEvents events action = do
     liftIO pollEvents
     let processNext = (liftIO . atomically . tryReadTChan) events >>= \case
-                Just e -> action e >> processNext
-                Nothing -> return ()
+            Just e -> action e >> processNext
+            Nothing -> return ()
     processNext
+
+-- | Can be plugged into the processEvents function
+closeOnEscape :: MonadIO m => Window -> Event -> m ()
+closeOnEscape win (Key Key'Escape _ KeyState'Pressed _) = liftIO $ setWindowShouldClose win True
+closeOnEscape _   _                                     = return ()
+
 
 withWindow :: String -> Int -> Int -> ((Window, TChan Event) -> IO c) -> IO c
 withWindow name width height action = 
     bracket (createWindow name width height) 
-            (\(win, _) -> destroyWindow win >> terminate ) 
+            -- We must make the current context Nothing or we won't be able
+            -- to create any more GL windows (probably a bug in GLFW)
+            (\(win, _) -> makeContextCurrent Nothing >> destroyWindow win >> GLFW.terminate)
             action
+
+whileWindow :: MonadIO m => Window -> m a -> m ()
+whileWindow win action = liftIO (windowShouldClose win) >>= \case
+    True  -> return ()
+    False -> action >> whileWindow win action
 
 setupEventChan :: Window -> IO (TChan Event)
 setupEventChan win = do
