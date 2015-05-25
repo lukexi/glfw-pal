@@ -12,17 +12,20 @@ module Graphics.UI.GLFW.Pal (
     getWindowSize,
     getCursorPos,
     getKey,
+    getWindowFocused,
+    setCursorInputMode,
     -- Re-exports
     Window,
     Key(..),
     KeyState(..),
     MouseButton(..),
-    MouseButtonState(..)
+    MouseButtonState(..),
+    CursorInputMode(..)
     ) where
 
 import Graphics.UI.GLFW hiding (
     createWindow, swapBuffers, getWindowSize,
-    getCursorPos, getKey)
+    getCursorPos, getKey, getWindowFocused, setCursorInputMode)
 import qualified Graphics.UI.GLFW as GLFW
 import Control.Concurrent.STM
 
@@ -130,3 +133,9 @@ getCursorPos :: (Fractional t, MonadIO m) => Window -> m (t, t)
 getCursorPos win = do
     (x,y) <- liftIO (GLFW.getCursorPos win)
     return (realToFrac x, realToFrac y)
+
+getWindowFocused :: MonadIO m => Window -> m Bool
+getWindowFocused win = (== GLFW.FocusState'Focused) <$> liftIO (GLFW.getWindowFocused win)
+
+setCursorInputMode :: MonadIO m => Window -> CursorInputMode -> m ()
+setCursorInputMode win = liftIO . GLFW.setCursorInputMode win
