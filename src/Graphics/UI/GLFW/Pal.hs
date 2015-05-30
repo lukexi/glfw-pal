@@ -10,6 +10,7 @@ module Graphics.UI.GLFW.Pal (
     -- Lifted
     swapBuffers,
     getWindowSize,
+    getFramebufferSize,
     getCursorPos,
     getKey,
     getWindowFocused,
@@ -25,7 +26,8 @@ module Graphics.UI.GLFW.Pal (
 
 import Graphics.UI.GLFW hiding (
     createWindow, swapBuffers, getWindowSize,
-    getCursorPos, getKey, getWindowFocused, setCursorInputMode)
+    getCursorPos, getKey, getWindowFocused, setCursorInputMode, 
+    getFramebufferSize)
 import qualified Graphics.UI.GLFW as GLFW
 import Control.Concurrent.STM
 
@@ -125,6 +127,9 @@ swapBuffers = liftIO . GLFW.swapBuffers
 
 getWindowSize :: MonadIO m => Window -> m (Int, Int)
 getWindowSize = liftIO . GLFW.getWindowSize
+
+getFramebufferSize :: MonadIO m => Window -> m (Int, Int)
+getFramebufferSize = liftIO . GLFW.getFramebufferSize
 
 getKey :: MonadIO m => Window -> Key -> m KeyState
 getKey win = liftIO . GLFW.getKey win
