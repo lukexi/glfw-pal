@@ -1,8 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 import Graphics.UI.GLFW.Pal
-import qualified Graphics.UI.GLFW as GLFW
 import Graphics.GL
-import Control.Monad
 
 main :: IO ()
 main = withWindow "GLFW Pal" 640 480 $ \(win, eventsChan) -> do

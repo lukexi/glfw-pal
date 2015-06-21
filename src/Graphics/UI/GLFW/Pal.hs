@@ -33,6 +33,12 @@ import Control.Concurrent.STM
 
 import Control.Monad.Trans
 import Control.Exception
+import Control.Monad
+import           Data.Set (Set)
+import qualified Data.Set as Set
+import           Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Maybe
 
 data Event = Key Key Int KeyState ModifierKeys
            | Character Char
@@ -42,9 +48,39 @@ data Event = Key Key Int KeyState ModifierKeys
            | WindowPos Int Int
            | WindowSize Int Int
            | FramebufferSize Int Int
+           | GamepadButton GamepadButton JoystickButtonState
+           | GamepadAxes GamepadAllAxes
            deriving Show
 
-createWindow :: String -> Int -> Int -> IO (GLFW.Window, TChan Event)
+-- These are defined in the order we expect to find them in getJoystickButtons
+data GamepadButton = GamepadButtonA
+                   | GamepadButtonB
+                   | GamepadButtonX
+                   | GamepadButtonY
+                   | GamepadButtonLeftShoulder
+                   | GamepadButtonRightShoulder
+                   | GamepadButtonBack
+                   | GamepadButtonStart
+                   | GamepadButtonLeftStick
+                   | GamepadButtonRightStick
+                   | GamepadButtonDPadUp
+                   | GamepadButtonDPadRight
+                   | GamepadButtonDPadDown
+                   | GamepadButtonDPadLeft
+                   deriving (Show, Eq, Ord, Enum, Bounded)
+
+data GamepadAllAxes = GamepadAllAxes
+    { gaxLeftStickX   :: !Double
+    , gaxLeftStickY   :: !Double
+    , gaxLeftTrigger  :: !Double
+    , gaxRightTrigger :: !Double
+    , gaxRightStickX  :: !Double
+    , gaxRightStickY  :: !Double
+    } deriving Show
+
+data Events = Events { esEvents :: TChan Event, esLastPressed :: TVar (Map Joystick (Set GamepadButton)) }
+
+createWindow :: String -> Int -> Int -> IO (Window, Events)
 createWindow windowName desiredW desiredH = do
     setErrorCallback (Just (\err string -> 
         putStrLn $ "GLFW Error: " ++ string ++ show err))
@@ -64,8 +100,9 @@ createWindow windowName desiredW desiredH = do
     swapInterval 1
 
     setWindowCloseCallback win . Just $ \_ -> setWindowShouldClose win True
-    events <- setupEventChan win
-    return (win, events)
+    eventChan <- setupEventChan win
+    buttons <- newTVarIO mempty
+    return (win, Events eventChan buttons)
     
     
     where
@@ -87,13 +124,58 @@ createWindow windowName desiredW desiredH = do
 
             return eventChan
 
-processEvents :: MonadIO m => TChan a -> (a -> m a1) -> m ()
+processEvents :: MonadIO m => Events -> (Event -> m a) -> m ()
 processEvents events action = do
+
+    liftIO (pollJoysticks events)
+
     liftIO pollEvents
-    let processNext = (liftIO . atomically . tryReadTChan) events >>= \case
+    
+    let processNext = (liftIO . atomically . tryReadTChan) (esEvents events) >>= \case
             Just e -> action e >> processNext
             Nothing -> return ()
     processNext
+
+
+pollJoysticks :: Events -> IO ()
+pollJoysticks events = forM_ [Joystick'1, Joystick'2, Joystick'3, Joystick'4] $ \joystick -> do
+    let writeEvent = atomically . writeTChan (esEvents events)
+    joystickIsPresent <- liftIO $ joystickPresent joystick
+    when joystickIsPresent $ 
+        getJoystickButtons joystick >>= \case
+            -- Expect 14 buttons for Xbox 360 controller
+            Just states@[_, _, _, _, _, _, _, _, _, _, _, _, _, _] -> do
+
+                -- let buttons = [a,b,x,y, leftShoulder, rightShoulder, back, start, leftStick, rightStick, up, right, down, left]
+                -- Turn the list of states into a list of pressed buttons
+                let buttons = [minBound..maxBound] :: [GamepadButton]
+                    pressed = Set.fromList . map fst . filter (\(_,state) -> state == JoystickButtonState'Pressed) $ zip buttons states
+                -- Get the old pressed state and write the new one
+                oldPressed <- atomically $ do
+                    oldPressed <- readTVar (esLastPressed events)
+                    writeTVar (esLastPressed events) (Map.insert joystick pressed oldPressed)
+                    return (fromMaybe mempty $ Map.lookup joystick oldPressed)
+                -- Diff the old and the new pressed states to find pressed and released events
+                let justReleased = oldPressed Set.\\ pressed
+                    justPressed  = pressed Set.\\ oldPressed
+                -- Write the events to the events channel
+                forM_ justPressed  $ \button -> writeEvent (GamepadButton button JoystickButtonState'Pressed)
+                forM_ justReleased $ \button -> writeEvent (GamepadButton button JoystickButtonState'Released)
+                getJoystickAxes joystick >>= \case
+                    Just [leftStickX, leftStickY, leftTrigger, rightTrigger, rightStickX, rightStickY] -> do
+                        let axes = GamepadAllAxes
+                                { gaxLeftStickX   = leftStickX
+                                , gaxLeftStickY   = leftStickY
+                                , gaxLeftTrigger  = leftTrigger
+                                , gaxRightTrigger = rightTrigger
+                                , gaxRightStickX  = rightStickX
+                                , gaxRightStickY  = rightStickY
+                                }
+                        writeEvent (GamepadAxes axes)
+                        return ()
+                    _ -> return ()
+            _ -> return ()
+
 
 -- | Can be plugged into the processEvents function
 closeOnEscape :: MonadIO m => Window -> Event -> m ()
@@ -101,7 +183,7 @@ closeOnEscape win (Key Key'Escape _ KeyState'Pressed _) = liftIO $ setWindowShou
 closeOnEscape _   _                                     = return ()
 
 -- | Initializes GLFW and creates a window, and ensures it is cleaned up afterwards
-withWindow :: String -> Int -> Int -> ((Window, TChan Event) -> IO c) -> IO c
+withWindow :: String -> Int -> Int -> ((Window, Events) -> IO c) -> IO c
 withWindow name width height action = 
     bracket (createWindow name width height) 
             -- We must make the current context Nothing or we won't be able
