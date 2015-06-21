@@ -22,7 +22,9 @@ module Graphics.UI.GLFW.Pal (
     KeyState(..),
     MouseButton(..),
     MouseButtonState(..),
-    CursorInputMode(..)
+    CursorInputMode(..),
+    GamepadAllAxes(..),
+    GamepadButton(..)
     ) where
 
 import Graphics.UI.GLFW hiding (
@@ -73,8 +75,7 @@ data GamepadButton = GamepadButtonA
 data GamepadAllAxes = GamepadAllAxes
     { gaxLeftStickX   :: !Double
     , gaxLeftStickY   :: !Double
-    , gaxLeftTrigger  :: !Double
-    , gaxRightTrigger :: !Double
+    , gaxTriggers     :: !Double
     , gaxRightStickX  :: !Double
     , gaxRightStickY  :: !Double
     } deriving Show
@@ -162,19 +163,19 @@ pollJoysticks events = forM_ [Joystick'1, Joystick'2, Joystick'3, Joystick'4] $ 
                 -- Write the events to the events channel
                 forM_ justPressed  $ \button -> writeEvent (GamepadButton button JoystickButtonState'Pressed)
                 forM_ justReleased $ \button -> writeEvent (GamepadButton button JoystickButtonState'Released)
+                -- print "hi"
                 getJoystickAxes joystick >>= \case
-                    Just [leftStickX, leftStickY, leftTrigger, rightTrigger, rightStickX, rightStickY] -> do
+                    Just [leftStickX, leftStickY, triggers, rightStickX, rightStickY] -> do
                         let axes = GamepadAllAxes
                                 { gaxLeftStickX   = leftStickX
                                 , gaxLeftStickY   = leftStickY
-                                , gaxLeftTrigger  = leftTrigger
-                                , gaxRightTrigger = rightTrigger
+                                , gaxTriggers     = triggers
                                 , gaxRightStickX  = rightStickX
                                 , gaxRightStickY  = rightStickY
                                 }
                         writeEvent (GamepadAxes axes)
                         return ()
-                    _ -> return ()
+                    _other -> return ()
             _ -> return ()
 
 
@@ -199,6 +200,7 @@ whileWindow win action = liftIO (windowShouldClose win) >>= \case
     True  -> return ()
     False -> action >> whileWindow win action
 
+-- | If the event matches the key, run the action.
 keyDown :: Monad m => Key -> Event -> m () -> m ()
 keyDown key (Key eventKey _ KeyState'Pressed _) action
     | eventKey == key = action
