@@ -6,6 +6,7 @@ module Graphics.UI.GLFW.Pal (
     closeOnEscape,
     processEvents, 
     Event(..),
+    Events(..),
     keyDown,
     whenKeyPressed,
     -- Lifted
