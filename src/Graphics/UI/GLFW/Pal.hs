@@ -7,6 +7,7 @@ module Graphics.UI.GLFW.Pal (
     processEvents, 
     Event(..),
     keyDown,
+    whenKeyPressed,
     -- Lifted
     swapBuffers,
     getWindowSize,
@@ -122,6 +123,11 @@ keyDown key (Key eventKey _ KeyState'Pressed _) action
     | eventKey == key = action
 keyDown _ _ _ = return ()
 
+whenKeyPressed :: MonadIO m => Window -> Key -> m () -> m ()
+whenKeyPressed win key action = getKey win key >>= \case
+    KeyState'Pressed -> action
+    _                -> return ()
+
 -- Lifted versions of GLFW functions
 swapBuffers :: MonadIO m => Window -> m ()
 swapBuffers = liftIO . GLFW.swapBuffers
@@ -148,3 +154,4 @@ getWindowFocused win = (== GLFW.FocusState'Focused) <$> liftIO (GLFW.getWindowFo
 
 setCursorInputMode :: MonadIO m => Window -> CursorInputMode -> m ()
 setCursorInputMode win = liftIO . GLFW.setCursorInputMode win
+
