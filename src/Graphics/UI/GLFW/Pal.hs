@@ -38,12 +38,16 @@ import Control.Concurrent.STM
 
 import Control.Monad.Trans
 import Control.Exception
-import Control.Monad
+import Control.Monad hiding (forM_)
 import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe
+import Data.Monoid
+import Control.Applicative
+import Data.Foldable
+import Prelude hiding (forM_)
 
 data Event = Key Key Int KeyState ModifierKeys
            | Character Char
@@ -234,7 +238,7 @@ getCursorPos win = do
     (x,y) <- liftIO (GLFW.getCursorPos win)
     return (realToFrac x, realToFrac y)
 
-getWindowFocused :: MonadIO m => Window -> m Bool
+getWindowFocused :: (Functor m, MonadIO m) => Window -> m Bool
 getWindowFocused win = (== GLFW.FocusState'Focused) <$> liftIO (GLFW.getWindowFocused win)
 
 setCursorInputMode :: MonadIO m => Window -> CursorInputMode -> m ()
