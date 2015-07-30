@@ -7,7 +7,7 @@ module Graphics.UI.GLFW.Pal (
     processEvents, 
     Event(..),
     Events(..),
-    keyDown,
+    onKeyDown,
     whenKeyPressed,
     -- Lifted
     swapBuffers,
@@ -207,10 +207,10 @@ whileWindow win action = liftIO (windowShouldClose win) >>= \case
     False -> action >> whileWindow win action
 
 -- | If the event matches the key, run the action.
-keyDown :: Monad m => Key -> Event -> m () -> m ()
-keyDown key (Key eventKey _ KeyState'Pressed _) action
+onKeyDown :: Monad m => Key -> Event -> m () -> m ()
+onKeyDown key (Key eventKey _ KeyState'Pressed _) action
     | eventKey == key = action
-keyDown _ _ _ = return ()
+onKeyDown _ _ _ = return ()
 
 whenKeyPressed :: MonadIO m => Window -> Key -> m () -> m ()
 whenKeyPressed win key action = getKey win key >>= \case
