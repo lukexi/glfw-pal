@@ -105,7 +105,7 @@ createWindow windowName desiredW desiredH = do
     
     makeContextCurrent (Just win)
 
-    swapInterval 1
+    swapInterval 0
 
     setWindowCloseCallback win . Just $ \_ -> setWindowShouldClose win True
     eventChan <- setupEventChan win
