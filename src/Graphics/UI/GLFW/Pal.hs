@@ -19,6 +19,7 @@ module Graphics.UI.GLFW.Pal (
     getWindowFocused,
     setCursorInputMode,
     -- Re-exports
+    swapInterval,
     Window,
     Key(..),
     KeyState(..),
