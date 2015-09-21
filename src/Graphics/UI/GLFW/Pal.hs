@@ -8,6 +8,7 @@ module Graphics.UI.GLFW.Pal (
     Event(..),
     Events(..),
     onKeyDown,
+    onKeyUp,
     whenKeyPressed,
     -- Lifted
     swapBuffers,
@@ -212,6 +213,11 @@ onKeyDown :: Monad m => Key -> Event -> m () -> m ()
 onKeyDown key (Key eventKey _ KeyState'Pressed _) action
     | eventKey == key = action
 onKeyDown _ _ _ = return ()
+
+onKeyUp :: Monad m => Key -> Event -> m () -> m ()
+onKeyUp key (Key eventKey _ KeyState'Released _) action
+    | eventKey == key = action
+onKeyUp _ _ _ = return ()
 
 whenKeyPressed :: MonadIO m => Window -> Key -> m () -> m ()
 whenKeyPressed win key action = getKey win key >>= \case
