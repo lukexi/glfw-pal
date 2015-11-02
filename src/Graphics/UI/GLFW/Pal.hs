@@ -10,6 +10,7 @@ module Graphics.UI.GLFW.Pal (
     onKeyDown,
     onKeyUp,
     whenKeyPressed,
+    getWindowViewport, 
     -- Lifted
     swapBuffers,
     getWindowSize,
@@ -236,6 +237,12 @@ setWindowSize win w h = liftIO (GLFW.setWindowSize win w h)
 
 getFramebufferSize :: MonadIO m => Window -> m (Int, Int)
 getFramebufferSize = liftIO . GLFW.getFramebufferSize
+
+-- | Pass this to glViewport to get the correct size on Retina Macs and normal Windows
+getWindowViewport :: Num a => MonadIO m => Window -> m (a, a, a, a)
+getWindowViewport win = do
+    (w, h) <- getFramebufferSize win
+    return (0, 0, fromIntegral w, fromIntegral h)
 
 getKey :: MonadIO m => Window -> Key -> m KeyState
 getKey win = liftIO . GLFW.getKey win
