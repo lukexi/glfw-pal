@@ -29,7 +29,10 @@ module Graphics.UI.GLFW.Pal (
     MouseButtonState(..),
     CursorInputMode(..),
     GamepadAllAxes(..),
-    GamepadButton(..)
+    GamepadButton(..),
+    -- Need linear
+    windowPosToWorldRay,
+    getWindowProjection
     ) where
 
 import Graphics.UI.GLFW hiding (
@@ -47,10 +50,9 @@ import qualified Data.Set as Set
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe
-import Data.Monoid
-import Control.Applicative
 import Data.Foldable
-import Prelude hiding (forM_)
+import Linear.Extra
+import Control.Lens
 
 data Event = Key Key Int KeyState ModifierKeys
            | Character Char
@@ -258,3 +260,35 @@ getWindowFocused win = (== GLFW.FocusState'Focused) <$> liftIO (GLFW.getWindowFo
 setCursorInputMode :: MonadIO m => Window -> CursorInputMode -> m ()
 setCursorInputMode win = liftIO . GLFW.setCursorInputMode win
 
+
+-- | Use the aspect ratio from the window to get a proper projection
+getWindowProjection :: (Floating a, MonadIO m) => Window -> a -> a -> a -> m (M44 a)
+getWindowProjection win fov near far = do
+    (w,h) <- getWindowSize win
+    return $ perspective fov (fromIntegral w / fromIntegral h) near far
+
+-- By Colin Barrett, originally from vr-pal
+windowPosToWorldRay :: (RealFloat a, Conjugate a, Epsilon a, MonadIO m) 
+                    => Window 
+                    -> M44 a
+                    -> Pose a 
+                    -> (a, a)
+                    -> m (V3 a, V3 a)
+windowPosToWorldRay win proj pose coord = do
+  (w, h) <- getWindowSize win
+  let (xNDC, yNDC) = win2Ndc coord (w,h)
+      start = ndc2Wld (V4 xNDC yNDC (-1.0) 1.0)
+      end   = ndc2Wld (V4 xNDC yNDC 0.0    1.0)
+      dir   = normalize (end ^-^ start)
+  return (start, dir ^* 1000.0)
+
+  where -- Converts from window coordinates (origin top-left) to normalized device coordinates
+    win2Ndc (x, y) (w, h) = 
+      let h' = fromIntegral h
+      in ((((x / fromIntegral w) - 0.5) * 2.0), ((((h' - y) / h') - 0.5) * 2.0))
+    -- Converts from normalized device coordinates to world coordinates
+    ndc2Wld i = hom2Euc (invViewProj !* i)
+    -- Converts from homogeneous coordinates to Euclidean coordinates
+    hom2Euc v = (v ^/ (v ^. _w)) ^. _xyz
+    safeInv44 m = fromMaybe m (inv44 m)
+    invViewProj = safeInv44 (proj !*! viewMatrixFromPose pose)
