@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RecordWildCards #-}
 module Graphics.UI.GLFW.Pal (
     createWindow, 
     withWindow,
@@ -7,12 +8,15 @@ module Graphics.UI.GLFW.Pal (
     processEvents, 
     Event(..),
     Events(..),
+    ModKey(..),
     onKey,
     onKeyDown, -- Ignores repeating
     onKeyUp,
     onChar,
     whenKeyPressed,
     getWindowViewport, 
+    matchModKeys,
+    onKeyWithMods,
     -- Lifted
     swapBuffers,
     getWindowSize,
@@ -55,6 +59,13 @@ import Data.Maybe
 import Data.Foldable
 import Linear.Extra
 import Control.Lens
+import Data.List (sort)
+
+data ModKey = ModKeyShift
+            | ModKeyControl
+            | ModKeyAlt
+            | ModKeySuper
+            deriving (Eq, Show, Ord)
 
 data Event = Key Key Int KeyState ModifierKeys
            | Character Char
@@ -220,11 +231,26 @@ onKeyDown (Key eventKey _ KeyState'Pressed _) key action
 onKeyDown _ _ _ = return ()
 
 onKey :: Monad m => Event -> Key -> m () -> m ()
-onKey (Key eventKey _ KeyState'Pressed _) key action
-    | eventKey == key = action
-onKey (Key eventKey _ KeyState'Repeating _) key action
-    | eventKey == key = action
-onKey _ _ _ = return ()
+onKey keyEvent = onKeyWithMods keyEvent []
+
+modKeysFromBools :: ModifierKeys -> [ModKey]
+modKeysFromBools ModifierKeys{..} = sort $
+    concat [ [ModKeyShift   | modifierKeysShift]
+           , [ModKeyControl | modifierKeysControl]
+           , [ModKeyAlt     | modifierKeysAlt]
+           , [ModKeySuper   | modifierKeysSuper]
+           ]
+
+matchModKeys :: ModifierKeys -> [ModKey] -> Bool
+matchModKeys modKeyBools modKeys = modKeysFromBools modKeyBools == sort modKeys
+
+onKeyWithMods :: Monad m => Event -> [ModKey] -> Key ->  m () -> m ()
+onKeyWithMods (Key eventKey _ keyState modifierKeyBools) modKeys key action
+    |     eventKey == key 
+       && keyState `elem` [KeyState'Pressed, KeyState'Repeating]
+       && matchModKeys modifierKeyBools modKeys
+    = action
+onKeyWithMods _ _ _ _ = return ()
 
 onKeyUp :: Monad m => Event -> Key -> m () -> m ()
 onKeyUp (Key eventKey _ KeyState'Released _) key action
