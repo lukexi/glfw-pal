@@ -7,8 +7,10 @@ module Graphics.UI.GLFW.Pal (
     processEvents, 
     Event(..),
     Events(..),
-    onKeyDown,
+    onKey,
+    onKeyDown, -- Ignores repeating
     onKeyUp,
+    onChar,
     whenKeyPressed,
     getWindowViewport, 
     -- Lifted
@@ -212,15 +214,26 @@ whileWindow win action = liftIO (windowShouldClose win) >>= \case
     False -> action >> whileWindow win action
 
 -- | If the event matches the key, run the action.
-onKeyDown :: Monad m => Key -> Event -> m () -> m ()
-onKeyDown key (Key eventKey _ KeyState'Pressed _) action
+onKeyDown :: Monad m => Event -> Key -> m () -> m ()
+onKeyDown (Key eventKey _ KeyState'Pressed _) key action
     | eventKey == key = action
 onKeyDown _ _ _ = return ()
 
-onKeyUp :: Monad m => Key -> Event -> m () -> m ()
-onKeyUp key (Key eventKey _ KeyState'Released _) action
+onKey :: Monad m => Event -> Key -> m () -> m ()
+onKey (Key eventKey _ KeyState'Pressed _) key action
+    | eventKey == key = action
+onKey (Key eventKey _ KeyState'Repeating _) key action
+    | eventKey == key = action
+onKey _ _ _ = return ()
+
+onKeyUp :: Monad m => Event -> Key -> m () -> m ()
+onKeyUp (Key eventKey _ KeyState'Released _) key action
     | eventKey == key = action
 onKeyUp _ _ _ = return ()
+
+onChar :: Monad m => Event -> (Char -> m ()) -> m ()
+onChar (Character c) f = f c
+onChar _             _ = return ()
 
 whenKeyPressed :: MonadIO m => Window -> Key -> m () -> m ()
 whenKeyPressed win key action = getKey win key >>= \case
@@ -290,5 +303,4 @@ windowPosToWorldRay win proj pose coord = do
     ndc2Wld i = hom2Euc (invViewProj !* i)
     -- Converts from homogeneous coordinates to Euclidean coordinates
     hom2Euc v = (v ^/ (v ^. _w)) ^. _xyz
-    safeInv44 m = fromMaybe m (inv44 m)
     invViewProj = safeInv44 (proj !*! viewMatrixFromPose pose)
