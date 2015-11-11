@@ -26,6 +26,8 @@ module Graphics.UI.GLFW.Pal (
     getKey,
     getWindowFocused,
     setCursorInputMode,
+    getClipboardString,
+    setClipboardString,
     -- Re-exports
     swapInterval,
     Window,
@@ -44,7 +46,8 @@ module Graphics.UI.GLFW.Pal (
 import Graphics.UI.GLFW hiding (
     createWindow, swapBuffers, getWindowSize,
     getCursorPos, getKey, getWindowFocused, setCursorInputMode, 
-    getFramebufferSize, setWindowSize)
+    getFramebufferSize, setWindowSize, 
+    getClipboardString, setClipboardString)
 import qualified Graphics.UI.GLFW as GLFW
 import Control.Concurrent.STM
 
@@ -272,6 +275,12 @@ swapBuffers = liftIO . GLFW.swapBuffers
 
 getWindowSize :: MonadIO m => Window -> m (Int, Int)
 getWindowSize = liftIO . GLFW.getWindowSize
+
+getClipboardString :: MonadIO m => Window -> m (Maybe String)
+getClipboardString = liftIO . GLFW.getClipboardString
+
+setClipboardString :: MonadIO m => Window -> String -> m ()
+setClipboardString win = liftIO . GLFW.setClipboardString win
 
 setWindowSize :: MonadIO m => Window -> Int -> Int -> m ()
 setWindowSize win w h = liftIO (GLFW.setWindowSize win w h)
