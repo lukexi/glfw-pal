@@ -13,6 +13,8 @@ module Graphics.UI.GLFW.Pal (
     onKeyDown, -- Ignores repeating
     onKeyUp,
     onChar,
+    onScroll,
+    onCursor,
     whenKeyPressed,
     getWindowViewport, 
     matchModKeys,
@@ -263,6 +265,14 @@ onKeyUp _ _ _ = return ()
 onChar :: Monad m => Event -> (Char -> m ()) -> m ()
 onChar (Character c) f = f c
 onChar _             _ = return ()
+
+onScroll :: (Fractional a, Monad m) => Event -> (a -> a -> m ()) -> m ()
+onScroll (MouseScroll x y) f = f (realToFrac x) (realToFrac y)
+onScroll _                 _ = return ()
+
+onCursor :: (Fractional a, Monad m) => Event -> (a -> a -> m ()) -> m ()
+onCursor (MouseCursor x y) f = f (realToFrac x) (realToFrac y)
+onCursor _                 _ = return ()
 
 whenKeyPressed :: MonadIO m => Window -> Key -> m () -> m ()
 whenKeyPressed win key action = getKey win key >>= \case
