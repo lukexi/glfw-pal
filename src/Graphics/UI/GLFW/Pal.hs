@@ -19,6 +19,7 @@ module Graphics.UI.GLFW.Pal (
     getWindowViewport, 
     matchModKeys,
     onKeyWithMods,
+    suppressConsole,
     -- Lifted
     swapBuffers,
     getWindowSize,
@@ -52,16 +53,17 @@ import Graphics.UI.GLFW hiding (
     getClipboardString, setClipboardString)
 import qualified Graphics.UI.GLFW as GLFW
 import Control.Concurrent.STM
+import GHC.IO.Handle
+import System.IO
+import Control.Monad
 
 import Control.Monad.Trans
 import Control.Exception
-import Control.Monad hiding (forM_)
 import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe
-import Data.Foldable
 import Linear.Extra
 import Control.Lens
 import Data.List (sort)
@@ -111,8 +113,21 @@ data GamepadAllAxes = GamepadAllAxes
 
 data Events = Events { esEvents :: TChan Event, esLastPressed :: TVar (Map Joystick (Set GamepadButton)) }
 
+-- | Use on Windows at the very start of main to 
+-- redirect any output to the console to the given log file
+-- Use this when using 
+-- ghc-options: -optl-mwindows
+-- to hide the console window in an end-user application.
+suppressConsole :: FilePath -> IO ()
+suppressConsole fileName = do
+  allOutput <- openFile fileName WriteMode
+  hDuplicateTo allOutput stdout
+  hDuplicateTo allOutput stderr
+  hDuplicateTo allOutput stdin
+
 createWindow :: String -> Int -> Int -> IO (Window, Events)
 createWindow windowName desiredW desiredH = do
+
     setErrorCallback (Just (\err string -> 
         putStrLn $ "GLFW Error: " ++ string ++ show err))
     _ <- GLFW.init
