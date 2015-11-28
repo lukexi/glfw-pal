@@ -31,6 +31,8 @@ module Graphics.UI.GLFW.Pal (
     setCursorInputMode,
     getClipboardString,
     setClipboardString,
+    hideWindow,
+    iconifyWindow,
     -- Re-exports
     swapInterval,
     Window,
@@ -50,7 +52,7 @@ import Graphics.UI.GLFW hiding (
     createWindow, swapBuffers, getWindowSize,
     getCursorPos, getKey, getWindowFocused, setCursorInputMode, 
     getFramebufferSize, setWindowSize, 
-    getClipboardString, setClipboardString)
+    getClipboardString, setClipboardString, hideWindow, iconifyWindow)
 import qualified Graphics.UI.GLFW as GLFW
 import Control.Concurrent.STM
 import GHC.IO.Handle
@@ -333,6 +335,11 @@ getWindowFocused win = (== GLFW.FocusState'Focused) <$> liftIO (GLFW.getWindowFo
 setCursorInputMode :: MonadIO m => Window -> CursorInputMode -> m ()
 setCursorInputMode win = liftIO . GLFW.setCursorInputMode win
 
+hideWindow :: (MonadIO m) => Window -> m ()
+hideWindow = liftIO . GLFW.hideWindow
+
+iconifyWindow :: (MonadIO m) => Window -> m ()
+iconifyWindow = liftIO . GLFW.iconifyWindow
 
 -- | Use the aspect ratio from the window to get a proper projection
 getWindowProjection :: (Floating a, MonadIO m) => Window -> a -> a -> a -> m (M44 a)
