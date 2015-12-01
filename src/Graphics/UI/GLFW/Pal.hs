@@ -1,38 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
 module Graphics.UI.GLFW.Pal (
-    createWindow, 
-    withWindow,
-    whileWindow,
-    closeOnEscape,
-    processEvents, 
-    Event(..),
-    Events(..),
-    ModKey(..),
-    onKey,
-    onKeyDown, -- Ignores repeating
-    onKeyUp,
-    onChar,
-    onScroll,
-    onCursor,
-    whenKeyPressed,
-    getWindowViewport, 
-    matchModKeys,
-    onKeyWithMods,
-    suppressConsole,
-    -- Lifted
-    swapBuffers,
-    getWindowSize,
-    setWindowSize,
-    getFramebufferSize,
-    getCursorPos,
-    getKey,
-    getWindowFocused,
-    setCursorInputMode,
-    getClipboardString,
-    setClipboardString,
-    hideWindow,
-    iconifyWindow,
+    module Graphics.UI.GLFW.Pal,
     -- Re-exports
     swapInterval,
     Window,
@@ -42,10 +11,7 @@ module Graphics.UI.GLFW.Pal (
     MouseButtonState(..),
     CursorInputMode(..),
     GamepadAllAxes(..),
-    GamepadButton(..),
-    -- Need linear
-    windowPosToWorldRay,
-    getWindowProjection
+    GamepadButton(..)
     ) where
 
 import Graphics.UI.GLFW hiding (
@@ -291,6 +257,10 @@ onCursor :: (Fractional a, Monad m) => Event -> (a -> a -> m ()) -> m ()
 onCursor (MouseCursor x y) f = f (realToFrac x) (realToFrac y)
 onCursor _                 _ = return ()
 
+onMouseDown :: Monad m => Event -> (MouseButton -> m ()) -> m ()
+onMouseDown (MouseButton b MouseButtonState'Pressed _) f = f b
+onMouseDown _ _ = return ()
+
 whenKeyPressed :: MonadIO m => Window -> Key -> m () -> m ()
 whenKeyPressed win key action = getKey win key >>= \case
     KeyState'Pressed -> action
@@ -353,14 +323,14 @@ windowPosToWorldRay :: (RealFloat a, Conjugate a, Epsilon a, MonadIO m)
                     -> M44 a
                     -> Pose a 
                     -> (a, a)
-                    -> m (V3 a, V3 a)
+                    -> m (Ray a)
 windowPosToWorldRay win proj pose coord = do
   (w, h) <- getWindowSize win
   let (xNDC, yNDC) = win2Ndc coord (w,h)
       start = ndc2Wld (V4 xNDC yNDC (-1.0) 1.0)
       end   = ndc2Wld (V4 xNDC yNDC 0.0    1.0)
       dir   = normalize (end ^-^ start)
-  return (start, dir ^* 1000.0)
+  return (Ray start (dir ^* 1000.0))
 
   where -- Converts from window coordinates (origin top-left) to normalized device coordinates
     win2Ndc (x, y) (w, h) = 
@@ -371,3 +341,12 @@ windowPosToWorldRay win proj pose coord = do
     -- Converts from homogeneous coordinates to Euclidean coordinates
     hom2Euc v = (v ^/ (v ^. _w)) ^. _xyz
     invViewProj = safeInv44 (proj !*! viewMatrixFromPose pose)
+
+cursorPosToWorldRay :: (RealFloat a, Conjugate a, Epsilon a, MonadIO m) 
+                    => Window 
+                    -> M44 a
+                    -> Pose a 
+                    -> m (Ray a)
+cursorPosToWorldRay win proj pose = do
+  cursorPos <- getCursorPos win
+  windowPosToWorldRay win proj pose cursorPos
