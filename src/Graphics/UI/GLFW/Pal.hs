@@ -340,7 +340,7 @@ windowPosToWorldRay win proj pose coord = do
     ndc2Wld i = hom2Euc (invViewProj !* i)
     -- Converts from homogeneous coordinates to Euclidean coordinates
     hom2Euc v = (v ^/ (v ^. _w)) ^. _xyz
-    invViewProj = safeInv44 (proj !*! viewMatrixFromPose pose)
+    invViewProj = inv44 (proj !*! viewMatrixFromPose pose)
 
 cursorPosToWorldRay :: (RealFloat a, Conjugate a, Epsilon a, MonadIO m) 
                     => Window 
