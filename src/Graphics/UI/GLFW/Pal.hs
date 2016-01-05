@@ -16,7 +16,7 @@ module Graphics.UI.GLFW.Pal (
 
 import Graphics.UI.GLFW hiding (
     createWindow, swapBuffers, getWindowSize,
-    getCursorPos, getKey, getWindowFocused, setCursorInputMode, 
+    getCursorPos, getKey, getMouseButton, getWindowFocused, setCursorInputMode, 
     getFramebufferSize, setWindowSize, 
     getClipboardString, setClipboardString, hideWindow, iconifyWindow)
 import qualified Graphics.UI.GLFW as GLFW
@@ -261,6 +261,12 @@ onMouseDown :: Monad m => Event -> (MouseButton -> m ()) -> m ()
 onMouseDown (MouseButton b MouseButtonState'Pressed _) f = f b
 onMouseDown _ _ = return ()
 
+whenMouseDown :: MonadIO m => Window -> MouseButton -> m () -> m ()
+whenMouseDown win button action = getMouseButton win button >>= \case
+  MouseButtonState'Pressed -> action
+  _                        -> return ()
+
+
 whenKeyPressed :: MonadIO m => Window -> Key -> m () -> m ()
 whenKeyPressed win key action = getKey win key >>= \case
     KeyState'Pressed -> action
@@ -293,6 +299,9 @@ getWindowViewport win = do
 
 getKey :: MonadIO m => Window -> Key -> m KeyState
 getKey win = liftIO . GLFW.getKey win
+
+getMouseButton :: MonadIO m => Window -> MouseButton -> m MouseButtonState
+getMouseButton win = liftIO . GLFW.getMouseButton win
 
 getCursorPos :: (Fractional t, MonadIO m) => Window -> m (t, t)
 getCursorPos win = do
@@ -330,7 +339,7 @@ windowPosToWorldRay win proj pose coord = do
       start = ndc2Wld (V4 xNDC yNDC (-1.0) 1.0)
       end   = ndc2Wld (V4 xNDC yNDC 0.0    1.0)
       dir   = normalize (end ^-^ start)
-  return (Ray start (dir ^* 1000.0))
+  return (Ray start dir)
 
   where -- Converts from window coordinates (origin top-left) to normalized device coordinates
     win2Ndc (x, y) (w, h) = 
