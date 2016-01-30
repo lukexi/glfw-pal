@@ -320,6 +320,12 @@ hideWindow = liftIO . GLFW.hideWindow
 iconifyWindow :: (MonadIO m) => Window -> m ()
 iconifyWindow = liftIO . GLFW.iconifyWindow
 
+showWindow :: (MonadIO m) => Window -> m ()
+showWindow = liftIO . GLFW.showWindow
+
+restoreWindow :: (MonadIO m) => Window -> m ()
+restoreWindow = liftIO . GLFW.restoreWindow
+
 -- | Use the aspect ratio from the window to get a proper projection
 getWindowProjection :: (Floating a, MonadIO m) => Window -> a -> a -> a -> m (M44 a)
 getWindowProjection win fov near far = do
