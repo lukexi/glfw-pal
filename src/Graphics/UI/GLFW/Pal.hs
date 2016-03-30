@@ -126,11 +126,11 @@ createWindow windowName desiredW desiredH = do
             eventChan <- newTChanIO
             let writeEvent = atomically . writeTChan eventChan
 
-            setKeyCallback win          . Just $ \_ key code state mods -> writeEvent (Key key code state mods)
-            setCharCallback win         . Just $ \_ char                -> writeEvent (Character char)
-            setMouseButtonCallback win  . Just $ \_ button state mods   -> writeEvent (MouseButton button state mods)
-            setCursorPosCallback win    . Just $ \_ x y                 -> writeEvent (MouseCursor x y)
-            setScrollCallback win       . Just $ \_ x y                 -> writeEvent (MouseScroll x y)
+            setKeyCallback             win . Just $ \_ key code state mods -> writeEvent (Key key code state mods)
+            setCharCallback            win . Just $ \_ char                -> writeEvent (Character char)
+            setMouseButtonCallback     win . Just $ \_ button state mods   -> writeEvent (MouseButton button state mods)
+            setCursorPosCallback       win . Just $ \_ x y                 -> writeEvent (MouseCursor x y)
+            setScrollCallback          win . Just $ \_ x y                 -> writeEvent (MouseScroll x y)
 
             setWindowPosCallback       win . Just $ \_ x y -> writeEvent (WindowPos x y)
             setWindowSizeCallback      win . Just $ \_ x y -> writeEvent (WindowSize x y)
@@ -212,15 +212,6 @@ whileWindow win action = liftIO (windowShouldClose win) >>= \case
     True  -> return ()
     False -> action >> whileWindow win action
 
--- | If the event matches the key, run the action.
-onKeyDown :: Monad m => Event -> Key -> m () -> m ()
-onKeyDown (Key eventKey _ KeyState'Pressed _) key action
-    | eventKey == key = action
-onKeyDown _ _ _ = return ()
-
-onKey :: Monad m => Event -> Key -> m () -> m ()
-onKey keyEvent = onKeyWithMods keyEvent []
-
 modKeysFromBools :: ModifierKeys -> [ModKey]
 modKeysFromBools ModifierKeys{..} = sort $
     concat [ [ModKeyShift   | modifierKeysShift]
@@ -232,22 +223,51 @@ modKeysFromBools ModifierKeys{..} = sort $
 matchModKeys :: ModifierKeys -> [ModKey] -> Bool
 matchModKeys modKeyBools modKeys = modKeysFromBools modKeyBools == sort modKeys
 
-onKeyWithMods :: Monad m => Event -> [ModKey] -> Key ->  m () -> m ()
-onKeyWithMods (Key eventKey _ keyState modifierKeyBools) modKeys key action
+ifKeyWithMods :: Monad m => a -> Event -> [ModKey] -> Key ->  m a -> m a
+ifKeyWithMods _ (Key eventKey _ keyState modifierKeyBools) modKeys key action
     |     eventKey == key 
        && keyState `elem` [KeyState'Pressed, KeyState'Repeating]
        && matchModKeys modifierKeyBools modKeys
     = action
-onKeyWithMods _ _ _ _ = return ()
+ifKeyWithMods a _ _ _ _ = return a
+
+ifKeyUp :: Monad m => a -> Event -> Key -> m a -> m a
+ifKeyUp _ (Key eventKey _ KeyState'Released _) key action
+    | eventKey == key = action
+ifKeyUp a _ _ _ = return a
+
+ifChar :: Monad m => a -> Event -> (Char -> m a) -> m a
+ifChar _ (Character c) f = f c
+ifChar a _             _ = return a
+
+-- | If the event matches the key, run the action.
+ifKeyDown :: Monad m => a -> Event -> Key -> m a -> m a
+ifKeyDown _ (Key eventKey _ KeyState'Pressed _) key action
+    | eventKey == key = action
+ifKeyDown a _ _ _ = return a
+
+ifKey :: Monad m => a -> Event -> Key -> m a -> m a
+ifKey a keyEvent = ifKeyWithMods a keyEvent []
+
+
+
+
+onKeyWithMods :: Monad m => Event -> [ModKey] -> Key -> m () -> m ()
+onKeyWithMods = ifKeyWithMods ()
 
 onKeyUp :: Monad m => Event -> Key -> m () -> m ()
-onKeyUp (Key eventKey _ KeyState'Released _) key action
-    | eventKey == key = action
-onKeyUp _ _ _ = return ()
+onKeyUp = ifKeyUp ()
 
 onChar :: Monad m => Event -> (Char -> m ()) -> m ()
-onChar (Character c) f = f c
-onChar _             _ = return ()
+onChar = ifChar ()
+
+-- | If the event matches the key, run the action.
+onKeyDown :: Monad m => Event -> Key -> m () -> m ()
+onKeyDown = ifKeyDown ()
+
+onKey :: Monad m => Event -> Key -> m () -> m ()
+onKey = ifKey ()
+
 
 onScroll :: (Fractional a, Monad m) => Event -> (a -> a -> m ()) -> m ()
 onScroll (MouseScroll x y) f = f (realToFrac x) (realToFrac y)
@@ -259,12 +279,12 @@ onCursor _                 _ = return ()
 
 onMouseDown :: Monad m => Event -> (MouseButton -> m ()) -> m ()
 onMouseDown (MouseButton b MouseButtonState'Pressed _) f = f b
-onMouseDown _ _ = return ()
+onMouseDown _                                          _ = return ()
 
 whenMouseDown :: MonadIO m => Window -> MouseButton -> m () -> m ()
 whenMouseDown win button action = getMouseButton win button >>= \case
-  MouseButtonState'Pressed -> action
-  _                        -> return ()
+    MouseButtonState'Pressed -> action
+    _                        -> return ()
 
 
 whenKeyPressed :: MonadIO m => Window -> Key -> m () -> m ()
