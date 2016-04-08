@@ -46,8 +46,8 @@ data ModKey = ModKeyShift
 data Event = Key Key Int KeyState ModifierKeys
            | Character Char
            | MouseButton MouseButton MouseButtonState ModifierKeys
-           | MouseCursor Double Double
-           | MouseScroll Double Double
+           | MouseCursor Float Float
+           | MouseScroll Float Float
            | WindowPos Int Int
            | WindowSize Int Int
            | FramebufferSize Int Int
@@ -73,11 +73,11 @@ data GamepadButton = GamepadButtonA
                    deriving (Show, Eq, Ord, Enum, Bounded)
 
 data GamepadAllAxes = GamepadAllAxes
-    { gaxLeftStickX   :: !Double
-    , gaxLeftStickY   :: !Double
-    , gaxTriggers     :: !Double
-    , gaxRightStickX  :: !Double
-    , gaxRightStickY  :: !Double
+    { gaxLeftStickX   :: !Float
+    , gaxLeftStickY   :: !Float
+    , gaxTriggers     :: !Float
+    , gaxRightStickX  :: !Float
+    , gaxRightStickY  :: !Float
     } deriving Show
 
 data Events = Events { esEvents :: IORef [Event], esLastPressed :: TVar (Map Joystick (Set GamepadButton)) }
@@ -130,8 +130,8 @@ createWindow windowName desiredW desiredH = do
             setKeyCallback             win . Just $ \_ key code state mods -> writeEvent (Key key code state mods)
             setCharCallback            win . Just $ \_ char                -> writeEvent (Character char)
             setMouseButtonCallback     win . Just $ \_ button state mods   -> writeEvent (MouseButton button state mods)
-            setCursorPosCallback       win . Just $ \_ x y                 -> writeEvent (MouseCursor x y)
-            setScrollCallback          win . Just $ \_ x y                 -> writeEvent (MouseScroll x y)
+            setCursorPosCallback       win . Just $ \_ x y                 -> writeEvent (MouseCursor (realToFrac x) (realToFrac y))
+            setScrollCallback          win . Just $ \_ x y                 -> writeEvent (MouseScroll (realToFrac x) (realToFrac y))
 
             setWindowPosCallback       win . Just $ \_ x y                 -> writeEvent (WindowPos x y)
             setWindowSizeCallback      win . Just $ \_ x y                 -> writeEvent (WindowSize x y)
@@ -180,11 +180,11 @@ pollJoysticks events = forM_ [Joystick'1, Joystick'2, Joystick'3, Joystick'4] $ 
                 getJoystickAxes joystick >>= \case
                     Just [leftStickX, leftStickY, triggers, rightStickX, rightStickY] -> do
                         let axes = GamepadAllAxes
-                                { gaxLeftStickX   = leftStickX
-                                , gaxLeftStickY   = leftStickY
-                                , gaxTriggers     = triggers
-                                , gaxRightStickX  = rightStickX
-                                , gaxRightStickY  = rightStickY
+                                { gaxLeftStickX   = realToFrac leftStickX
+                                , gaxLeftStickY   = realToFrac leftStickY
+                                , gaxTriggers     = realToFrac triggers
+                                , gaxRightStickX  = realToFrac rightStickX
+                                , gaxRightStickY  = realToFrac rightStickY
                                 }
                         writeEvent (GamepadAxes axes)
                         return ()
@@ -270,11 +270,11 @@ onKey :: Monad m => Event -> Key -> m () -> m ()
 onKey = ifKey ()
 
 
-onScroll :: (Fractional a, Monad m) => Event -> (a -> a -> m ()) -> m ()
+onScroll :: (Monad m) => Event -> (Float -> Float -> m ()) -> m ()
 onScroll (MouseScroll x y) f = f (realToFrac x) (realToFrac y)
 onScroll _                 _ = return ()
 
-onCursor :: (Fractional a, Monad m) => Event -> (a -> a -> m ()) -> m ()
+onCursor :: (Monad m) => Event -> (Float -> Float -> m ()) -> m ()
 onCursor (MouseCursor x y) f = f (realToFrac x) (realToFrac y)
 onCursor _                 _ = return ()
 
@@ -324,12 +324,12 @@ getKey win = liftIO . GLFW.getKey win
 getMouseButton :: MonadIO m => Window -> MouseButton -> m MouseButtonState
 getMouseButton win = liftIO . GLFW.getMouseButton win
 
-getCursorPos :: (Fractional t, MonadIO m) => Window -> m (t, t)
+getCursorPos :: (MonadIO m) => Window -> m (Float, Float)
 getCursorPos win = do
     (x,y) <- liftIO (GLFW.getCursorPos win)
     return (realToFrac x, realToFrac y)
 
-getWindowFocused :: (Functor m, MonadIO m) => Window -> m Bool
+getWindowFocused :: (MonadIO m) => Window -> m Bool
 getWindowFocused win = (== GLFW.FocusState'Focused) <$> liftIO (GLFW.getWindowFocused win)
 
 setCursorInputMode :: MonadIO m => Window -> CursorInputMode -> m ()
@@ -354,12 +354,12 @@ getWindowProjection win fov near far = do
     return $ perspective fov (fromIntegral w / fromIntegral h) near far
 
 -- By Colin Barrett, originally from vr-pal
-windowPosToWorldRay :: (RealFloat a, Conjugate a, Epsilon a, MonadIO m) 
+windowPosToWorldRay :: (MonadIO m) 
                     => Window 
-                    -> M44 a
-                    -> Pose a 
-                    -> (a, a)
-                    -> m (Ray a)
+                    -> M44 Float
+                    -> Pose Float 
+                    -> (Float, Float)
+                    -> m (Ray Float)
 windowPosToWorldRay win proj pose coord = do
   (w, h) <- getWindowSize win
   let (xNDC, yNDC) = win2Ndc coord (w,h)
@@ -378,11 +378,11 @@ windowPosToWorldRay win proj pose coord = do
     hom2Euc v = (v ^/ (v ^. _w)) ^. _xyz
     invViewProj = inv44 (proj !*! viewMatrixFromPose pose)
 
-cursorPosToWorldRay :: (RealFloat a, Conjugate a, Epsilon a, MonadIO m) 
+cursorPosToWorldRay :: (MonadIO m) 
                     => Window 
-                    -> M44 a
-                    -> Pose a 
-                    -> m (Ray a)
+                    -> M44 Float
+                    -> Pose Float 
+                    -> m (Ray Float)
 cursorPosToWorldRay win proj pose = do
   cursorPos <- getCursorPos win
   windowPosToWorldRay win proj pose cursorPos
