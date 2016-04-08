@@ -11,7 +11,8 @@ module Graphics.UI.GLFW.Pal (
     MouseButtonState(..),
     CursorInputMode(..),
     GamepadAllAxes(..),
-    GamepadButton(..)
+    GamepadButton(..),
+    ModifierKeys(..)
     ) where
 
 import Graphics.UI.GLFW hiding (
@@ -35,7 +36,7 @@ import Data.Maybe
 import Linear.Extra
 import Control.Lens
 import Data.List (sort)
-
+import Data.IORef
 data ModKey = ModKeyShift
             | ModKeyControl
             | ModKeyAlt
@@ -79,7 +80,7 @@ data GamepadAllAxes = GamepadAllAxes
     , gaxRightStickY  :: !Double
     } deriving Show
 
-data Events = Events { esEvents :: TChan Event, esLastPressed :: TVar (Map Joystick (Set GamepadButton)) }
+data Events = Events { esEvents :: IORef [Event], esLastPressed :: TVar (Map Joystick (Set GamepadButton)) }
 
 -- | Use on Windows at the very start of main to 
 -- redirect any output to the console to the given log file
@@ -121,10 +122,10 @@ createWindow windowName desiredW desiredH = do
     
     where
     
-        setupEventChan :: Window -> IO (TChan Event)
+        setupEventChan :: Window -> IO (IORef [Event])
         setupEventChan win = do
-            eventChan <- newTChanIO
-            let writeEvent = atomically . writeTChan eventChan
+            eventsRef <- newIORef []
+            let writeEvent event = modifyIORef' eventsRef (event:)
 
             setKeyCallback             win . Just $ \_ key code state mods -> writeEvent (Key key code state mods)
             setCharCallback            win . Just $ \_ char                -> writeEvent (Character char)
@@ -132,28 +133,28 @@ createWindow windowName desiredW desiredH = do
             setCursorPosCallback       win . Just $ \_ x y                 -> writeEvent (MouseCursor x y)
             setScrollCallback          win . Just $ \_ x y                 -> writeEvent (MouseScroll x y)
 
-            setWindowPosCallback       win . Just $ \_ x y -> writeEvent (WindowPos x y)
-            setWindowSizeCallback      win . Just $ \_ x y -> writeEvent (WindowSize x y)
-            setFramebufferSizeCallback win . Just $ \_ w h -> writeEvent (FramebufferSize w h)
+            setWindowPosCallback       win . Just $ \_ x y                 -> writeEvent (WindowPos x y)
+            setWindowSizeCallback      win . Just $ \_ x y                 -> writeEvent (WindowSize x y)
+            setFramebufferSizeCallback win . Just $ \_ w h                 -> writeEvent (FramebufferSize w h)
 
-            return eventChan
+            return eventsRef
 
-processEvents :: MonadIO m => Events -> (Event -> m a) -> m ()
-processEvents events action = do
+gatherEvents :: MonadIO m => Events -> m [Event]
+gatherEvents Events{..} = liftIO $ do
 
-    liftIO (pollJoysticks events)
+    writeIORef esEvents []
 
-    liftIO pollEvents
-    
-    let processNext = (liftIO . atomically . tryReadTChan) (esEvents events) >>= \case
-            Just e -> action e >> processNext
-            Nothing -> return ()
-    processNext
+    -- FIXME: was causing 8ms pauses, so disabling joystick support
+    --pollJoysticks events
+    pollEvents
+    events <- reverse <$> readIORef esEvents
+        
+    return events
 
 
 pollJoysticks :: Events -> IO ()
 pollJoysticks events = forM_ [Joystick'1, Joystick'2, Joystick'3, Joystick'4] $ \joystick -> do
-    let writeEvent = atomically . writeTChan (esEvents events)
+    let writeEvent event = modifyIORef' (esEvents events) (event:)
     joystickIsPresent <- liftIO $ joystickPresent joystick
     when joystickIsPresent $ 
         getJoystickButtons joystick >>= \case
