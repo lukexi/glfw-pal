@@ -37,6 +37,7 @@ import Linear.Extra
 import Control.Lens
 import Data.List (sort)
 import Data.IORef
+
 data ModKey = ModKeyShift
             | ModKeyControl
             | ModKeyAlt
@@ -53,6 +54,7 @@ data Event = Key Key Int KeyState ModifierKeys
            | FramebufferSize Int Int
            | GamepadButton GamepadButton JoystickButtonState
            | GamepadAxes GamepadAllAxes
+           | WindowRefresh
            deriving Show
 
 -- These are defined in the order we expect to find them in getJoystickButtons
@@ -80,7 +82,10 @@ data GamepadAllAxes = GamepadAllAxes
     , gaxRightStickY  :: !Float
     } deriving Show
 
-data Events = Events { esEvents :: IORef [Event], esLastPressed :: TVar (Map Joystick (Set GamepadButton)) }
+data Events = Events 
+    { esEvents :: IORef [Event]
+    , esLastPressed :: TVar (Map Joystick (Set GamepadButton)) 
+    }
 
 -- | Use on Windows at the very start of main to 
 -- redirect any output to the console to the given log file
@@ -89,10 +94,10 @@ data Events = Events { esEvents :: IORef [Event], esLastPressed :: TVar (Map Joy
 -- to hide the console window in an end-user application.
 suppressConsole :: FilePath -> IO ()
 suppressConsole fileName = do
-  allOutput <- openFile fileName WriteMode
-  hDuplicateTo allOutput stdout
-  hDuplicateTo allOutput stderr
-  hDuplicateTo allOutput stdin
+    allOutput <- openFile fileName WriteMode
+    hDuplicateTo allOutput stdout
+    hDuplicateTo allOutput stderr
+    hDuplicateTo allOutput stdin
 
 createWindow :: String -> Int -> Int -> IO (Window, Events)
 createWindow windowName desiredW desiredH = do
@@ -114,7 +119,6 @@ createWindow windowName desiredW desiredH = do
 
     swapInterval 0
 
-    setWindowCloseCallback win . Just $ \_ -> setWindowShouldClose win True
     eventChan <- setupEventChan win
     buttons <- newTVarIO mempty
     return (win, Events eventChan buttons)
@@ -127,6 +131,8 @@ createWindow windowName desiredW desiredH = do
             eventsRef <- newIORef []
             let writeEvent event = modifyIORef' eventsRef (event:)
 
+            setWindowCloseCallback     win . Just $ \_                     -> setWindowShouldClose win True
+
             setKeyCallback             win . Just $ \_ key code state mods -> writeEvent (Key key code state mods)
             setCharCallback            win . Just $ \_ char                -> writeEvent (Character char)
             setMouseButtonCallback     win . Just $ \_ button state mods   -> writeEvent (MouseButton button state mods)
@@ -134,6 +140,7 @@ createWindow windowName desiredW desiredH = do
             setScrollCallback          win . Just $ \_ x y                 -> writeEvent (MouseScroll (realToFrac x) (realToFrac y))
 
             setWindowPosCallback       win . Just $ \_ x y                 -> writeEvent (WindowPos x y)
+            setWindowRefreshCallback   win . Just $ \_                     -> writeEvent (WindowRefresh)
             setWindowSizeCallback      win . Just $ \_ x y                 -> writeEvent (WindowSize x y)
             setFramebufferSizeCallback win . Just $ \_ w h                 -> writeEvent (FramebufferSize w h)
 
@@ -198,7 +205,7 @@ closeOnEscape win (Key Key'Escape _ KeyState'Pressed _) = liftIO $ setWindowShou
 closeOnEscape _   _                                     = return ()
 
 -- | Initializes GLFW and creates a window, and ensures it is cleaned up afterwards
-withWindow :: String -> Int -> Int -> ((Window, Events) -> IO c) -> IO c
+withWindow :: String -> Int -> Int -> ((Window, Events) -> IO a) -> IO a
 withWindow name width height action = 
     bracket (createWindow name width height) 
             -- We must make the current context Nothing or we won't be able
@@ -282,6 +289,11 @@ onMouseDown :: Monad m => Event -> (MouseButton -> m ()) -> m ()
 onMouseDown (MouseButton b MouseButtonState'Pressed _) f = f b
 onMouseDown _                                          _ = return ()
 
+
+onMouseUp :: Monad m => Event -> (MouseButton -> m ()) -> m ()
+onMouseUp (MouseButton b MouseButtonState'Released _) f = f b
+onMouseUp _                                           _ = return ()
+
 whenMouseDown :: MonadIO m => Window -> MouseButton -> m () -> m ()
 whenMouseDown win button action = getMouseButton win button >>= \case
     MouseButtonState'Pressed -> action
@@ -361,22 +373,22 @@ windowPosToWorldRay :: (MonadIO m)
                     -> (Float, Float)
                     -> m (Ray Float)
 windowPosToWorldRay win proj pose coord = do
-  (w, h) <- getWindowSize win
-  let (xNDC, yNDC) = win2Ndc coord (w,h)
-      start = ndc2Wld (V4 xNDC yNDC (-1.0) 1.0)
-      end   = ndc2Wld (V4 xNDC yNDC 0.0    1.0)
-      dir   = normalize (end ^-^ start)
-  return (Ray start dir)
-
-  where -- Converts from window coordinates (origin top-left) to normalized device coordinates
-    win2Ndc (x, y) (w, h) = 
-      let h' = fromIntegral h
-      in ((((x / fromIntegral w) - 0.5) * 2.0), ((((h' - y) / h') - 0.5) * 2.0))
-    -- Converts from normalized device coordinates to world coordinates
-    ndc2Wld i = hom2Euc (invViewProj !* i)
-    -- Converts from homogeneous coordinates to Euclidean coordinates
-    hom2Euc v = (v ^/ (v ^. _w)) ^. _xyz
-    invViewProj = inv44 (proj !*! viewMatrixFromPose pose)
+    (w, h) <- getWindowSize win
+    let (xNDC, yNDC) = win2Ndc coord (w,h)
+        start = ndc2Wld (V4 xNDC yNDC (-1.0) 1.0)
+        end   = ndc2Wld (V4 xNDC yNDC 0.0    1.0)
+        dir   = normalize (end ^-^ start)
+    return (Ray start dir)
+  
+    where -- Converts from window coordinates (origin top-left) to normalized device coordinates
+      win2Ndc (x, y) (w, h) = 
+        let h' = fromIntegral h
+        in ((((x / fromIntegral w) - 0.5) * 2.0), ((((h' - y) / h') - 0.5) * 2.0))
+      -- Converts from normalized device coordinates to world coordinates
+      ndc2Wld i = hom2Euc (invViewProj !* i)
+      -- Converts from homogeneous coordinates to Euclidean coordinates
+      hom2Euc v = (v ^/ (v ^. _w)) ^. _xyz
+      invViewProj = inv44 (proj !*! viewMatrixFromPose pose)
 
 cursorPosToWorldRay :: (MonadIO m) 
                     => Window 
@@ -384,5 +396,5 @@ cursorPosToWorldRay :: (MonadIO m)
                     -> Pose Float 
                     -> m (Ray Float)
 cursorPosToWorldRay win proj pose = do
-  cursorPos <- getCursorPos win
-  windowPosToWorldRay win proj pose cursorPos
+    cursorPos <- getCursorPos win
+    windowPosToWorldRay win proj pose cursorPos
