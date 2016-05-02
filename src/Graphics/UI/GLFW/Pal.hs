@@ -44,7 +44,7 @@ data ModKey = ModKeyShift
             | ModKeySuper
             deriving (Eq, Show, Ord)
 
-data Event = Key Key Int KeyState ModifierKeys
+data Event = KeyboardKey Key Int KeyState ModifierKeys
            | Character Char
            | MouseButton MouseButton MouseButtonState ModifierKeys
            | MouseCursor Float Float
@@ -133,7 +133,7 @@ createWindow windowName desiredW desiredH = do
 
             setWindowCloseCallback     win . Just $ \_                     -> setWindowShouldClose win True
 
-            setKeyCallback             win . Just $ \_ key code state mods -> writeEvent (Key key code state mods)
+            setKeyCallback             win . Just $ \_ key code state mods -> writeEvent (KeyboardKey key code state mods)
             setCharCallback            win . Just $ \_ char                -> writeEvent (Character char)
             setMouseButtonCallback     win . Just $ \_ button state mods   -> writeEvent (MouseButton button state mods)
             setCursorPosCallback       win . Just $ \_ x y                 -> writeEvent (MouseCursor (realToFrac x) (realToFrac y))
@@ -201,7 +201,7 @@ pollJoysticks events = forM_ [Joystick'1, Joystick'2, Joystick'3, Joystick'4] $ 
 
 -- | Can be plugged into the processEvents function
 closeOnEscape :: MonadIO m => Window -> Event -> m ()
-closeOnEscape win (Key Key'Escape _ KeyState'Pressed _) = liftIO $ setWindowShouldClose win True
+closeOnEscape win (KeyboardKey Key'Escape _ KeyState'Pressed _) = liftIO $ setWindowShouldClose win True
 closeOnEscape _   _                                     = return ()
 
 -- | Initializes GLFW and creates a window, and ensures it is cleaned up afterwards
@@ -232,7 +232,7 @@ matchModKeys :: ModifierKeys -> [ModKey] -> Bool
 matchModKeys modKeyBools modKeys = modKeysFromBools modKeyBools == sort modKeys
 
 ifKeyWithMods :: Monad m => a -> Event -> [ModKey] -> Key ->  m a -> m a
-ifKeyWithMods _ (Key eventKey _ keyState modifierKeyBools) modKeys key action
+ifKeyWithMods _ (KeyboardKey eventKey _ keyState modifierKeyBools) modKeys key action
     |     eventKey == key 
        && keyState `elem` [KeyState'Pressed, KeyState'Repeating]
        && matchModKeys modifierKeyBools modKeys
@@ -240,7 +240,7 @@ ifKeyWithMods _ (Key eventKey _ keyState modifierKeyBools) modKeys key action
 ifKeyWithMods a _ _ _ _ = return a
 
 ifKeyUp :: Monad m => a -> Event -> Key -> m a -> m a
-ifKeyUp _ (Key eventKey _ KeyState'Released _) key action
+ifKeyUp _ (KeyboardKey eventKey _ KeyState'Released _) key action
     | eventKey == key = action
 ifKeyUp a _ _ _ = return a
 
@@ -250,7 +250,7 @@ ifChar a _             _ = return a
 
 -- | If the event matches the key, run the action.
 ifKeyDown :: Monad m => a -> Event -> Key -> m a -> m a
-ifKeyDown _ (Key eventKey _ KeyState'Pressed _) key action
+ifKeyDown _ (KeyboardKey eventKey _ KeyState'Pressed _) key action
     | eventKey == key = action
 ifKeyDown a _ _ _ = return a
 
