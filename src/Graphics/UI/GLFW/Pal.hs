@@ -17,8 +17,8 @@ module Graphics.UI.GLFW.Pal (
 
 import Graphics.UI.GLFW hiding (
     createWindow, swapBuffers, getWindowSize,
-    getCursorPos, getKey, getMouseButton, getWindowFocused, setCursorInputMode, 
-    getFramebufferSize, setWindowSize, 
+    getCursorPos, getKey, getMouseButton, getWindowFocused, setCursorInputMode,
+    getFramebufferSize, setWindowSize,
     getClipboardString, setClipboardString, hideWindow, iconifyWindow)
 import qualified Graphics.UI.GLFW as GLFW
 import Control.Concurrent.STM
@@ -82,14 +82,14 @@ data GamepadAllAxes = GamepadAllAxes
     , gaxRightStickY  :: !Float
     } deriving Show
 
-data Events = Events 
+data Events = Events
     { esEvents :: IORef [Event]
-    , esLastPressed :: TVar (Map Joystick (Set GamepadButton)) 
+    , esLastPressed :: TVar (Map Joystick (Set GamepadButton))
     }
 
--- | Use on Windows at the very start of main to 
+-- | Use on Windows at the very start of main to
 -- redirect any output to the console to the given log file
--- Use this when using 
+-- Use this when using
 -- ghc-options: -optl-mwindows
 -- to hide the console window in an end-user application.
 suppressConsole :: FilePath -> IO ()
@@ -102,7 +102,7 @@ suppressConsole fileName = do
 createWindow :: String -> Int -> Int -> IO (Window, Events)
 createWindow windowName desiredW desiredH = do
 
-    setErrorCallback (Just (\err string -> 
+    setErrorCallback (Just (\err string ->
         putStrLn $ "GLFW Error: " ++ string ++ show err))
     _ <- GLFW.init
 
@@ -112,9 +112,9 @@ createWindow windowName desiredW desiredH = do
     windowHint $ WindowHint'ContextVersionMajor 4
     windowHint $ WindowHint'ContextVersionMinor 1
     windowHint $ WindowHint'sRGBCapable True
-    
+
     Just win <- GLFW.createWindow desiredW desiredH windowName Nothing Nothing
-    
+
     makeContextCurrent (Just win)
 
     swapInterval 0
@@ -122,10 +122,10 @@ createWindow windowName desiredW desiredH = do
     eventChan <- setupEventChan win
     buttons <- newTVarIO mempty
     return (win, Events eventChan buttons)
-    
-    
+
+
     where
-    
+
         setupEventChan :: Window -> IO (IORef [Event])
         setupEventChan win = do
             eventsRef <- newIORef []
@@ -155,7 +155,7 @@ gatherEvents Events{..} = liftIO $ do
     --pollJoysticks events
     pollEvents
     events <- reverse <$> readIORef esEvents
-        
+
     return events
 
 
@@ -163,7 +163,7 @@ pollJoysticks :: Events -> IO ()
 pollJoysticks events = forM_ [Joystick'1, Joystick'2, Joystick'3, Joystick'4] $ \joystick -> do
     let writeEvent event = modifyIORef' (esEvents events) (event:)
     joystickIsPresent <- liftIO $ joystickPresent joystick
-    when joystickIsPresent $ 
+    when joystickIsPresent $
         getJoystickButtons joystick >>= \case
             -- Expect 14 buttons for Xbox 360 controller
             Just states@[_, _, _, _, _, _, _, _, _, _, _, _, _, _] -> do
@@ -206,14 +206,14 @@ closeOnEscape _   _                                     = return ()
 
 -- | Initializes GLFW and creates a window, and ensures it is cleaned up afterwards
 withWindow :: String -> Int -> Int -> ((Window, Events) -> IO a) -> IO a
-withWindow name width height action = 
-    bracket (createWindow name width height) 
+withWindow name width height action =
+    bracket (createWindow name width height)
             -- We must make the current context Nothing or we won't be able
             -- to create any more GL windows (probably a bug in GLFW)
             (\(win, _) -> makeContextCurrent Nothing >> destroyWindow win >> GLFW.terminate)
             action
 
--- | Like 'forever', but checks if the windowShouldClose flag 
+-- | Like 'forever', but checks if the windowShouldClose flag
 -- is set on each loop and returns if so.
 whileWindow :: MonadIO m => Window -> m a -> m ()
 whileWindow win action = liftIO (windowShouldClose win) >>= \case
@@ -233,7 +233,7 @@ matchModKeys modKeyBools modKeys = modKeysFromBools modKeyBools == sort modKeys
 
 ifKeyWithMods :: Monad m => a -> Event -> [ModKey] -> Key ->  m a -> m a
 ifKeyWithMods _ (KeyboardKey eventKey _ keyState modifierKeyBools) modKeys key action
-    |     eventKey == key 
+    |     eventKey == key
        && keyState `elem` [KeyState'Pressed, KeyState'Repeating]
        && matchModKeys modifierKeyBools modKeys
     = action
@@ -321,6 +321,9 @@ setClipboardString win = liftIO . GLFW.setClipboardString win
 setWindowSize :: MonadIO m => Window -> Int -> Int -> m ()
 setWindowSize win w h = liftIO (GLFW.setWindowSize win w h)
 
+setWindowPosition :: MonadIO m => Window -> Int -> Int -> m ()
+setWindowPosition win x y = liftIO (GLFW.setWindowPos win x y)
+
 getFramebufferSize :: MonadIO m => Window -> m (Int, Int)
 getFramebufferSize = liftIO . GLFW.getFramebufferSize
 
@@ -366,10 +369,10 @@ getWindowProjection win fov near far = do
     return $ perspective fov (fromIntegral w / fromIntegral h) near far
 
 -- By Colin Barrett, originally from vr-pal
-windowPosToWorldRay :: (MonadIO m) 
-                    => Window 
+windowPosToWorldRay :: (MonadIO m)
+                    => Window
                     -> M44 Float
-                    -> Pose Float 
+                    -> Pose Float
                     -> (Float, Float)
                     -> m (Ray Float)
 windowPosToWorldRay win proj pose coord = do
@@ -379,9 +382,9 @@ windowPosToWorldRay win proj pose coord = do
         end   = ndc2Wld (V4 xNDC yNDC 0.0    1.0)
         dir   = normalize (end ^-^ start)
     return (Ray start dir)
-  
+
     where -- Converts from window coordinates (origin top-left) to normalized device coordinates
-      win2Ndc (x, y) (w, h) = 
+      win2Ndc (x, y) (w, h) =
         let h' = fromIntegral h
         in ((((x / fromIntegral w) - 0.5) * 2.0), ((((h' - y) / h') - 0.5) * 2.0))
       -- Converts from normalized device coordinates to world coordinates
@@ -390,10 +393,10 @@ windowPosToWorldRay win proj pose coord = do
       hom2Euc v = (v ^/ (v ^. _w)) ^. _xyz
       invViewProj = inv44 (proj !*! viewMatrixFromPose pose)
 
-cursorPosToWorldRay :: (MonadIO m) 
-                    => Window 
+cursorPosToWorldRay :: (MonadIO m)
+                    => Window
                     -> M44 Float
-                    -> Pose Float 
+                    -> Pose Float
                     -> m (Ray Float)
 cursorPosToWorldRay win proj pose = do
     cursorPos <- getCursorPos win
