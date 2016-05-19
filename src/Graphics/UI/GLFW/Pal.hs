@@ -19,7 +19,8 @@ import Graphics.UI.GLFW hiding (
     createWindow, swapBuffers, getWindowSize,
     getCursorPos, getKey, getMouseButton, getWindowFocused, setCursorInputMode,
     getFramebufferSize, setWindowSize,
-    getClipboardString, setClipboardString, hideWindow, iconifyWindow)
+    getClipboardString, setClipboardString, hideWindow, iconifyWindow,
+    makeContextCurrent)
 import qualified Graphics.UI.GLFW as GLFW
 import Control.Concurrent.STM
 import GHC.IO.Handle
@@ -361,6 +362,9 @@ showWindow = liftIO . GLFW.showWindow
 
 restoreWindow :: (MonadIO m) => Window -> m ()
 restoreWindow = liftIO . GLFW.restoreWindow
+
+makeContextCurrent :: (MonadIO m) => Maybe Window -> m ()
+makeContextCurrent = liftIO . GLFW.makeContextCurrent
 
 -- | Use the aspect ratio from the window to get a proper projection
 getWindowProjection :: (Floating a, MonadIO m) => Window -> a -> a -> a -> m (M44 a)
