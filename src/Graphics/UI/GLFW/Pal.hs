@@ -88,6 +88,12 @@ data Events = Events
     , esLastPressed :: TVar (Map Joystick (Set GamepadButton))
     }
 
+--data GLFW = GLFW
+--    { glfwWindow         :: Window
+--    , glfwThreadedWindow :: Maybe Window
+--    , glfwEvents         :: Events
+--    }
+
 -- | Use on Windows at the very start of main to
 -- redirect any output to the console to the given log file
 -- Use this when using
@@ -100,7 +106,7 @@ suppressConsole fileName = do
     hDuplicateTo allOutput stderr
     hDuplicateTo allOutput stdin
 
-createWindow :: String -> Int -> Int -> IO (Window, Events)
+createWindow :: String -> Int -> Int -> IO (Window, Window, Events)
 createWindow windowName desiredW desiredH = do
 
     setErrorCallback (Just (\err string ->
@@ -114,7 +120,14 @@ createWindow windowName desiredW desiredH = do
     windowHint $ WindowHint'ContextVersionMinor 1
     windowHint $ WindowHint'sRGBCapable True
 
-    Just win <- GLFW.createWindow desiredW desiredH windowName Nothing Nothing
+
+    threadWin <- if createThreadedWindow
+    windowHint $ WindowHint'Visible False
+    Just threadWin <- GLFW.createWindow 1 1 "Thread Window" Nothing Nothing
+
+    windowHint $ WindowHint'Visible True
+
+    Just win <- GLFW.createWindow desiredW desiredH windowName Nothing (Just threadWin)
 
     makeContextCurrent (Just win)
 
@@ -122,7 +135,7 @@ createWindow windowName desiredW desiredH = do
 
     eventChan <- setupEventChan win
     buttons <- newTVarIO mempty
-    return (win, Events eventChan buttons)
+    return (win, threadWin, Events eventChan buttons)
 
 
     where
@@ -206,12 +219,12 @@ closeOnEscape win (KeyboardKey Key'Escape _ KeyState'Pressed _) = liftIO $ setWi
 closeOnEscape _   _                                     = return ()
 
 -- | Initializes GLFW and creates a window, and ensures it is cleaned up afterwards
-withWindow :: String -> Int -> Int -> ((Window, Events) -> IO a) -> IO a
+withWindow :: String -> Int -> Int -> ((Window, Window, Events) -> IO a) -> IO a
 withWindow name width height action =
     bracket (createWindow name width height)
             -- We must make the current context Nothing or we won't be able
             -- to create any more GL windows (probably a bug in GLFW)
-            (\(win, _) -> makeContextCurrent Nothing >> destroyWindow win >> GLFW.terminate)
+            (\(win, _, _) -> makeContextCurrent Nothing >> destroyWindow win >> GLFW.terminate)
             action
 
 -- | Like 'forever', but checks if the windowShouldClose flag
