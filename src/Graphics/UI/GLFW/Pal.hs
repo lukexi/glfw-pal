@@ -121,7 +121,6 @@ createWindow windowName desiredW desiredH = do
     windowHint $ WindowHint'sRGBCapable True
 
 
-    threadWin <- if createThreadedWindow
     windowHint $ WindowHint'Visible False
     Just threadWin <- GLFW.createWindow 1 1 "Thread Window" Nothing Nothing
 
