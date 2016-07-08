@@ -20,7 +20,7 @@ import Graphics.UI.GLFW hiding (
     getCursorPos, getKey, getMouseButton, getWindowFocused, setCursorInputMode,
     getFramebufferSize, setWindowSize,
     getClipboardString, setClipboardString, hideWindow, iconifyWindow,
-    makeContextCurrent)
+    makeContextCurrent, setWindowShouldClose)
 import qualified Graphics.UI.GLFW as GLFW
 import Control.Concurrent.STM
 import GHC.IO.Handle
@@ -345,6 +345,9 @@ getClipboardString = liftIO . GLFW.getClipboardString
 
 setClipboardString :: MonadIO m => Window -> String -> m ()
 setClipboardString win = liftIO . GLFW.setClipboardString win
+
+setWindowShouldClose :: MonadIO m => Window -> Bool -> m ()
+setWindowShouldClose win = liftIO . GLFW.setWindowShouldClose win
 
 setWindowSize :: MonadIO m => Window -> Int -> Int -> m ()
 setWindowSize win w h = liftIO (GLFW.setWindowSize win w h)
