@@ -3,4 +3,5 @@ packages:
 - '.'
 - '../linear-extra'
 - '../bindings-GLFW'
+- '../gl-pal'
 resolver: nightly-2016-02-02

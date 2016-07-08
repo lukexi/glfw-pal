@@ -39,6 +39,8 @@ import Control.Lens
 import Data.List (sort)
 import Data.IORef
 
+import Graphics.GL.Pal.Debug
+
 data ModKey = ModKeyShift
             | ModKeyControl
             | ModKeyAlt
@@ -106,8 +108,15 @@ suppressConsole fileName = do
     hDuplicateTo allOutput stderr
     hDuplicateTo allOutput stdin
 
+-- | Mac doesn't support this, GL 4.3+ only :*(
+createWindowDebug :: String -> Int -> Int -> IO (Window, Window, Events)
+createWindowDebug = createWindow' True
+
 createWindow :: String -> Int -> Int -> IO (Window, Window, Events)
-createWindow windowName desiredW desiredH = do
+createWindow = createWindow' False
+
+createWindow' :: Bool -> String -> Int -> Int -> IO (Window, Window, Events)
+createWindow' debug windowName desiredW desiredH = do
 
     setErrorCallback (Just (\err string ->
         putStrLn $ "GLFW Error: " ++ string ++ show err))
@@ -117,9 +126,12 @@ createWindow windowName desiredW desiredH = do
     windowHint $ WindowHint'OpenGLForwardCompat True
     windowHint $ WindowHint'OpenGLProfile OpenGLProfile'Core
     windowHint $ WindowHint'ContextVersionMajor 4
-    windowHint $ WindowHint'ContextVersionMinor 1
+    -- Debug support only available on GL 4.3+
+    windowHint $ WindowHint'ContextVersionMinor (if debug then 4 else 1)
     windowHint $ WindowHint'sRGBCapable True
 
+    when debug $ do
+        windowHint $ WindowHint'OpenGLDebugContext True
 
     windowHint $ WindowHint'Visible False
     Just threadWin <- GLFW.createWindow 1 1 "Thread Window" Nothing Nothing
@@ -129,6 +141,9 @@ createWindow windowName desiredW desiredH = do
     Just win <- GLFW.createWindow desiredW desiredH windowName Nothing (Just threadWin)
 
     makeContextCurrent (Just win)
+
+    when debug $ do
+        installDebugHook
 
     swapInterval 0
 
